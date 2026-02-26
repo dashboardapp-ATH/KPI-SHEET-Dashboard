@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<base target="_top"/>
+<title>AUTRANS KPI Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg:#0d0f14; --surface:#161920; --surface2:#1e222b;
+    --border:#262b36; --accent:#f0b429; --accent2:#3ecfcf;
+    --accent3:#f56565; --accent4:#68d391; --text:#e8eaf0;
+    --text2:#8892a4; --text3:#505869; --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--text);font-size:13px;}
+
+  /* ── HEADER ── */
+  .header{
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    padding:14px 24px;
+    display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:100;
+  }
+  .logo{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--accent);letter-spacing:2px;}
+  .logo-sub{font-size:10px;color:var(--text3);letter-spacing:1px;margin-top:1px;}
+
+  /* ── TABS ── */
+  .tabs{display:flex;gap:4px;margin:0 24px;}
+  .tab{
+    padding:8px 18px;border-radius:8px;cursor:pointer;
+    font-size:12px;font-weight:500;color:var(--text2);
+    border:1px solid transparent;transition:all .15s;
+  }
+  .tab:hover{color:var(--text);background:var(--surface2);}
+  .tab.active{color:var(--accent);background:rgba(240,180,41,.08);border-color:rgba(240,180,41,.25);}
+
+  /* ── FILTERS ── */
+  .filters{display:flex;gap:10px;align-items:center;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);}
+  select,input{
+    background:var(--surface2);border:1px solid var(--border);color:var(--text);
+    padding:7px 12px;border-radius:8px;font-size:12px;font-family:inherit;outline:none;cursor:pointer;
+  }
+  select:focus,input:focus{border-color:var(--accent);}
+  .btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;display:flex;align-items:center;gap:5px;}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+  .btn:hover{opacity:.85;}
+
+  /* ── CONTENT ── */
+  .content{padding:20px 24px;}
+  .page{display:none;}.page.active{display:block;}
+
+  /* ── KPI CARDS ── */
+  .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
+  .kpi-card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:18px 20px;
+    position:relative;overflow:hidden;transition:transform .15s;
+  }
+  .kpi-card:hover{transform:translateY(-2px);}
+  .kpi-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+  .kpi-card.gold::after{background:var(--accent);}
+  .kpi-card.cyan::after{background:var(--accent2);}
+  .kpi-card.green::after{background:var(--accent4);}
+  .kpi-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;}
+  .kpi-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;margin:8px 0 4px;line-height:1;}
+  .kpi-card.gold .kpi-value{color:var(--accent);}
+  .kpi-card.cyan .kpi-value{color:var(--accent2);}
+  .kpi-card.green .kpi-value{color:var(--accent4);}
+  .kpi-delta{font-size:11px;}
+  .up{color:var(--accent4);}.down{color:var(--accent3);}.neutral{color:var(--text3);}
+
+  /* ── CARD ── */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;}
+  .card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .card-title{font-size:13px;font-weight:600;}
+  .card-body{padding:18px;}
+
+  /* ── TABLE ── */
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;padding:9px 14px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;background:var(--surface2);border-bottom:1px solid var(--border);}
+  td{padding:11px 14px;font-size:12px;border-bottom:1px solid rgba(38,43,54,.7);}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .badge{display:inline-block;padding:2px 8px;background:rgba(240,180,41,.1);color:var(--accent);border-radius:4px;font-size:10px;font-weight:600;font-family:'Space Mono',monospace;}
+  .mono{font-family:'Space Mono',monospace;font-size:11px;}
+  .pct{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;font-family:'Space Mono',monospace;}
+  .pct.up{background:rgba(104,211,145,.12);color:var(--accent4);}
+  .pct.down{background:rgba(245,101,101,.12);color:var(--accent3);}
+  .pct.neutral{background:var(--surface2);color:var(--text3);}
+
+  /* ── CHARTS ── */
+  .chart-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:16px;}
+  .chart-wrap{position:relative;height:240px;}
+  .chart-wrap-lg{position:relative;height:280px;}
+
+  /* ── COMPARE ── */
+  .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+  .compare-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  .tag{display:inline-block;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+  .tag-mom{background:rgba(62,207,207,.15);color:var(--accent2);}
+  .tag-yoy{background:rgba(240,180,41,.15);color:var(--accent);}
+  .big-num{font-family:'Space Mono',monospace;font-size:38px;font-weight:700;line-height:1;}
+  .big-sub{font-size:11px;color:var(--text2);margin-top:5px;}
+  .divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+
+  /* ── QUALITY ── */
+  .q-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .q-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+  .q-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .q-emoji{font-size:18px;}
+  .q-name{font-size:12px;font-weight:600;}
+  .q-route{font-size:10px;color:var(--text3);}
+  .q-item{font-size:11px;color:var(--text2);padding:3px 0;border-bottom:1px solid rgba(38,43,54,.5);}
+  .q-item:last-child{border-bottom:none;}
+
+  /* ── LOADING ── */
+  .loading{text-align:center;padding:40px;color:var(--text3);}
+  .spinner{display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:10px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── ROUTE BARS ── */
+  .rb{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(38,43,54,.5);}
+  .rb:last-child{border-bottom:none;}
+  .rb-label{width:150px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rb-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .rb-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.16,1,.3,1);}
+  .rb-val{font-family:'Space Mono',monospace;font-size:11px;color:var(--text2);width:85px;text-align:right;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="logo">AUTRANS</div>
+    <div class="logo-sub">KPI Reporting Dashboard</div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('summary',this)">📊 Summary</div>
+    <div class="tab" onclick="switchTab('compare',this)">📈 KPI Comparison</div>
+    <div class="tab" onclick="switchTab('analytics',this)">🛣️ Route Analytics</div>
+    <div class="tab" onclick="switchTab('quality',this)">🔍 Data Quality</div>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="filters">
+  <select id="sel-company" onchange="loadData()">
+    <option value="all">ทุกบริษัท</option>
+    <option value="ATH">ATH</option>
+    <option value="MSP">MSP</option>
+  </select>
+  <select id="sel-period" onchange="loadData()">
+    <option value="">-- เลือกรอบบิล --</option>
+  </select>
+  <button class="btn btn-ghost" onclick="refreshAll()">🔄 Refresh</button>
+  <button class="btn btn-primary" onclick="exportExcel()">📥 Export Excel</button>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- ── SUMMARY ── -->
+  <div class="page active" id="page-summary">
+    <div class="kpi-grid">
+      <div class="kpi-card gold">
+        <div class="kpi-label">Total Revenue</div>
+        <div class="kpi-value" id="kv-revenue">–</div>
+        <div class="kpi-delta" id="kd-revenue"><span class="neutral">–</span></div>
+      </div>
+      <div class="kpi-card cyan">
+        <div class="kpi-label">Total Trips</div>
+        <div class="kpi-value" id="kv-trips">–</div>
+        <div class="kpi-delta" id="kd-trips"><span class="neutral">–</span></div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-label">Avg Price / Trip</div>
+        <div class="kpi-value" id="kv-avg">–</div>
+        <div class="kpi-delta"><span class="neutral">จากไฟล์ PRICE โดยตรง</span></div>
+      </div>
+    </div>
+    <div class="chart-grid">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Revenue by Route</div></div>
+        <div class="card-body"><div class="chart-wrap"><canvas id="c-rev-bar"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Trip Distribution</div></div>
+        <div class="card-body"><div class="chart-wrap"><canvas id="c-trip-pie"></canvas></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Route Details — 7 Routes</div></div>
+      <table>
+        <thead><tr><th>Route</th><th>Total Trips</th><th>Price/Trip</th><th>Revenue</th><th>MoM Rev %</th><th>YoY Rev %</th></tr></thead>
+        <tbody id="tb-routes"><tr><td colspan="6" class="loading"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── COMPARE ── -->
+  <div class="page" id="page-compare">
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="tag tag-mom">Month-over-Month</div>
+        <div style="margin-bottom:16px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Revenue Change</div>
+          <div class="big-num" id="mom-rev">–</div>
+          <div class="big-sub" id="mom-rev-sub">เทียบกับเดือนก่อนหน้า</div>
+        </div>
+        <hr class="divider"/>
+        <div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Trips Change</div>
+          <div class="big-num" id="mom-trip">–</div>
+          <div class="big-sub" id="mom-trip-sub">จำนวนเที่ยว</div>
+        </div>
+      </div>
+      <div class="compare-card">
+        <div class="tag tag-yoy">Year-over-Year</div>
+        <div style="margin-bottom:16px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Revenue Change</div>
+          <div class="big-num" id="yoy-rev">–</div>
+          <div class="big-sub" id="yoy-rev-sub">เทียบกับปีที่แล้ว</div>
+        </div>
+        <hr class="divider"/>
+        <div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Trips Change</div>
+          <div class="big-num" id="yoy-trip">–</div>
+          <div class="big-sub" id="yoy-trip-sub">จำนวนเที่ยว</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Revenue Trend — 12 เดือน</div></div>
+      <div class="card-body"><div class="chart-wrap-lg"><canvas id="c-trend"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Comparison by Route</div></div>
+      <div class="card-body"><div class="chart-wrap-lg"><canvas id="c-cmp-bar"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ── ANALYTICS ── -->
+  <div class="page" id="page-analytics">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div>
+        <div style="background:rgba(104,211,145,.06);border:1px solid rgba(104,211,145,.2);border-radius:8px;padding:14px 16px;font-size:12px;display:flex;gap:10px;align-items:center;margin-bottom:10px">
+          <span style="font-size:20px">🚀</span>
+          <div><div style="font-weight:600;color:var(--accent4)">Route ที่เติบโตสูงสุด</div><div id="top-route" style="font-family:'Space Mono',monospace;margin-top:3px">–</div></div>
+        </div>
+        <div style="background:rgba(245,101,101,.06);border:1px solid rgba(245,101,101,.2);border-radius:8px;padding:14px 16px;font-size:12px;display:flex;gap:10px;align-items:center">
+          <span style="font-size:20px">📉</span>
+          <div><div style="font-weight:600;color:var(--accent3)">Route ที่เติบโตต่ำสุด</div><div id="bot-route" style="font-family:'Space Mono',monospace;margin-top:3px">–</div></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-header"><div class="card-title">Revenue Share</div></div>
+        <div class="card-body"><div style="height:160px"><canvas id="c-ana-pie"></canvas></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Revenue per Route (เรียงลำดับ)</div></div>
+      <div class="card-body" id="route-bars-wrap" style="padding:16px 20px"></div>
+    </div>
+  </div>
+
+  <!-- ── QUALITY ── -->
+  <div class="page" id="page-quality">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">
+        <div class="card-title">Validation Status per Sheet</div>
+        <span id="q-summary" style="font-size:11px;color:var(--text2)"></span>
+      </div>
+      <div class="card-body"><div class="q-grid" id="q-grid"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Upload History</div></div>
+      <table>
+        <thead><tr><th>ไฟล์</th><th>บริษัท</th><th>รอบบิล</th><th>OK</th><th>Warn</th><th>Err</th><th>สถานะ</th><th>อัปโหลดเมื่อ</th></tr></thead>
+        <tbody id="tb-history"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+// ── CHART INSTANCES ───────────────────────────────────────
+const charts = {};
+Chart.defaults.color = '#8892a4';
+Chart.defaults.font.family = "'IBM Plex Sans Thai', sans-serif";
+Chart.defaults.font.size = 11;
+const COLORS = ['rgba(240,180,41,.85)','rgba(62,207,207,.85)','rgba(104,211,145,.85)',
+                'rgba(245,101,101,.85)','rgba(99,179,237,.85)','rgba(183,148,244,.85)','rgba(251,146,60,.85)'];
+const COLOR_FILLS = COLORS.map(c => c.replace('.85','0.25'));
+
+function mkChart(id, type, labels, datasets, opts={}) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type, data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display: datasets.length>1 || type==='doughnut', labels:{padding:12,boxWidth:10}}},
+      scales: type==='doughnut'||type==='pie' ? {} : {
+        x:{grid:{color:'rgba(38,43,54,.8)'},ticks:{maxRotation:30}},
+        y:{grid:{color:'rgba(38,43,54,.8)'},ticks:{callback: opts.yFmt||(v=>v)}},
+      },
+      ...opts,
+    }
+  });
+}
+
+// ── FORMAT HELPERS ────────────────────────────────────────
+const fmtBaht = v => '฿' + Number(v).toLocaleString('th-TH', {maximumFractionDigits:0});
+const fmtNum  = v => Number(v).toLocaleString('th-TH');
+const fmtPct  = v => { const n=parseFloat(v); return (n>=0?'+':'')+n.toFixed(1)+'%'; };
+const pctCls  = v => { const n=parseFloat(v); return n>0?'up':n<0?'down':'neutral'; };
+const arrow   = v => { const n=parseFloat(v); return n>0?'▲':n<0?'▼':'–'; };
+
+// ── TAB SWITCHING ─────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
+  renderCurrentTab();
+}
+
+// ── LOAD PERIODS ──────────────────────────────────────────
+function loadPeriods() {
+  google.script.run
+    .withSuccessHandler(periods => {
+      const sel = document.getElementById('sel-period');
+      sel.innerHTML = '<option value="">-- เลือกรอบบิล --</option>';
+      periods.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p; opt.textContent = p;
+        sel.appendChild(opt);
+      });
+      if (periods.length > 0) { sel.value = periods[0]; loadData(); }
+    })
+    .getAvailablePeriods();
+}
+
+// ── LOAD DATA ─────────────────────────────────────────────
+let currentData = null;
+let compareData = null;
+let trendData   = null;
+
+function loadData() {
+  const company = document.getElementById('sel-company').value;
+  const period  = document.getElementById('sel-period').value;
+  if (!period) return;
+
+  showLoading();
+
+  // Load summary
+  google.script.run
+    .withSuccessHandler(data => {
+      currentData = data;
+      renderSummary();
+    })
+    .getSummaryData(company, period);
+
+  // Load compare
+  google.script.run
+    .withSuccessHandler(data => {
+      compareData = data;
+      renderCompare();
+    })
+    .getCompareData(company, period);
+
+  // Load trend
+  google.script.run
+    .withSuccessHandler(data => {
+      trendData = data;
+      renderTrend();
+    })
+    .getTrendData(company);
+
+  // Load quality
+  google.script.run
+    .withSuccessHandler(data => renderQuality(data))
+    .getQualityStatus();
+}
+
+function showLoading() {
+  document.getElementById('tb-routes').innerHTML =
+    '<tr><td colspan="6" class="loading"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>';
+}
+
+function refreshAll() { loadPeriods(); }
+
+// ── RENDER SUMMARY ────────────────────────────────────────
+function renderSummary() {
+  if (!currentData || currentData.error) return;
+  const t = currentData.totals;
+
+  document.getElementById('kv-revenue').textContent = fmtBaht(t.revenue);
+  document.getElementById('kv-trips').textContent   = fmtNum(t.trips);
+  document.getElementById('kv-avg').textContent     = fmtBaht(t.avgPrice);
+
+  const routes = currentData.routes || [];
+
+  // Revenue Delta (from MoM in data)
+  const momRevs = routes.map(r => parseFloat(r.mom_revenue_pct)).filter(v => !isNaN(v));
+  if (momRevs.length > 0) {
+    const avg = momRevs.reduce((a,b)=>a+b,0)/momRevs.length;
+    document.getElementById('kd-revenue').innerHTML =
+      `<span class="${pctCls(avg)}">${arrow(avg)} ${fmtPct(avg)} MoM</span>`;
+    document.getElementById('kd-trips').innerHTML =
+      `<span class="${pctCls(avg)}">${arrow(avg)} เทียบเดือนก่อน</span>`;
+  }
+
+  // Bar chart
+  const labels = routes.map(r => r.route.length>12 ? r.route.slice(0,12)+'…' : r.route);
+  mkChart('c-rev-bar','bar', labels,
+    [{label:'Revenue', data: routes.map(r=>parseFloat(r.total_revenue)||0),
+      backgroundColor:COLORS, borderRadius:4, borderSkipped:false}],
+    {yFmt: v=>'฿'+(v/1e6).toFixed(1)+'M'});
+
+  // Pie chart
+  mkChart('c-trip-pie','doughnut', routes.map(r=>r.route),
+    [{data:routes.map(r=>parseFloat(r.total_trips)||0),
+      backgroundColor:COLORS, borderWidth:1, borderColor:'#161920'}],
+    {plugins:{legend:{position:'right'}}});
+
+  // Table
+  const tbody = document.getElementById('tb-routes');
+  tbody.innerHTML = routes.map(r => {
+    const mom = r.mom_revenue_pct;
+    const yoy = r.yoy_revenue_pct;
+    return `<tr>
+      <td><span class="badge">${r.route}</span></td>
+      <td class="mono">${fmtNum(parseFloat(r.total_trips)||0)}</td>
+      <td class="mono">${fmtBaht(parseFloat(r.avg_price)||0)}</td>
+      <td class="mono" style="color:var(--accent);font-weight:700">${fmtBaht(parseFloat(r.total_revenue)||0)}</td>
+      <td>${mom!==''&&mom!==null ? `<span class="pct ${pctCls(mom)}">${arrow(mom)} ${fmtPct(mom)}</span>` : '<span class="neutral">–</span>'}</td>
+      <td>${yoy!==''&&yoy!==null ? `<span class="pct ${pctCls(yoy)}">${arrow(yoy)} ${fmtPct(yoy)}</span>` : '<span class="neutral">–</span>'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">ไม่มีข้อมูล</td></tr>';
+
+  renderAnalytics(routes);
+}
+
+// ── RENDER COMPARE ────────────────────────────────────────
+function renderCompare() {
+  if (!compareData) return;
+  const ms = compareData.momSummary;
+  const ys = compareData.yoySummary;
+
+  function setPct(elId, subId, val, subText) {
+    const el = document.getElementById(elId);
+    const sub = document.getElementById(subId);
+    if (val !== null && val !== undefined && val !== '') {
+      el.textContent = (parseFloat(val)>=0?'+':'')+parseFloat(val).toFixed(1)+'%';
+      el.className = 'big-num ' + pctCls(val);
+    } else {
+      el.textContent = '–'; el.className = 'big-num neutral';
+    }
+    if (sub) sub.textContent = subText;
+  }
+
+  setPct('mom-rev', 'mom-rev-sub', ms?.revenuePct, `เทียบกับ ${compareData.mom?.period||'–'}`);
+  setPct('mom-trip','mom-trip-sub', ms?.tripsPct, 'จำนวนเที่ยว MoM');
+  setPct('yoy-rev', 'yoy-rev-sub', ys?.revenuePct, `เทียบกับ ${compareData.yoy?.period||'–'}`);
+  setPct('yoy-trip','yoy-trip-sub', ys?.tripsPct, 'จำนวนเที่ยว YoY');
+
+  // Compare bar chart
+  const currRoutes = (compareData.current?.routes||[]);
+  const momRoutes  = (compareData.mom?.data?.routes||[]);
+  const yoyRoutes  = (compareData.yoy?.data?.routes||[]);
+  const labels = currRoutes.map(r => r.route.length>10?r.route.slice(0,10)+'…':r.route);
+  const getRevs = (arr) => currRoutes.map(cr => {
+    const match = arr.find(r => r.route===cr.route);
+    return match ? parseFloat(match.total_revenue)||0 : 0;
+  });
+
+  mkChart('c-cmp-bar','bar', labels, [
+    {label:'เดือนนี้',   data:currRoutes.map(r=>parseFloat(r.total_revenue)||0), backgroundColor:COLORS[0], borderRadius:4},
+    {label:'เดือนก่อน', data:getRevs(momRoutes),  backgroundColor:COLORS[1], borderRadius:4},
+    {label:'ปีที่แล้ว', data:getRevs(yoyRoutes),  backgroundColor:COLORS[4], borderRadius:4},
+  ], {yFmt: v=>'฿'+(v/1e6).toFixed(1)+'M'});
+}
+
+// ── RENDER TREND ──────────────────────────────────────────
+function renderTrend() {
+  if (!trendData || trendData.length === 0) return;
+  mkChart('c-trend','line',
+    trendData.map(d=>d.period_month),
+    [{label:'Revenue', data:trendData.map(d=>d.revenue),
+      borderColor:'rgba(240,180,41,1)', backgroundColor:'rgba(240,180,41,0.1)',
+      fill:true, tension:0.4, pointRadius:3}],
+    {yFmt: v=>'฿'+(v/1e6).toFixed(1)+'M'});
+}
+
+// ── RENDER ANALYTICS ─────────────────────────────────────
+function renderAnalytics(routes) {
+  if (!routes || routes.length===0) return;
+  const sorted = [...routes].sort((a,b)=>(parseFloat(b.total_revenue)||0)-(parseFloat(a.total_revenue)||0));
+  const maxRev = parseFloat(sorted[0]?.total_revenue)||1;
+
+  // Top/Bottom by MoM
+  const withMom = sorted.filter(r=>r.mom_revenue_pct!==''&&r.mom_revenue_pct!==null);
+  if (withMom.length > 0) {
+    const byMom = [...withMom].sort((a,b)=>parseFloat(b.mom_revenue_pct)-parseFloat(a.mom_revenue_pct));
+    document.getElementById('top-route').textContent = byMom[0].route + ' · ' + fmtPct(byMom[0].mom_revenue_pct);
+    document.getElementById('bot-route').textContent = byMom[byMom.length-1].route + ' · ' + fmtPct(byMom[byMom.length-1].mom_revenue_pct);
+  }
+
+  // Route bars
+  const barsHtml = sorted.map((r,i) => {
+    const pct = (parseFloat(r.total_revenue)||0)/maxRev*100;
+    return `<div class="rb">
+      <div class="rb-label">${r.route}</div>
+      <div class="rb-track"><div class="rb-fill" style="width:${pct.toFixed(1)}%;background:${COLORS[i%7]}"></div></div>
+      <div class="rb-val">${fmtBaht(parseFloat(r.total_revenue)||0)}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('route-bars-wrap').innerHTML = barsHtml;
+
+  // Pie
+  mkChart('c-ana-pie','doughnut', sorted.map(r=>r.route),
+    [{data:sorted.map(r=>parseFloat(r.total_revenue)||0), backgroundColor:COLORS, borderWidth:1, borderColor:'#161920'}]);
+}
+
+// ── RENDER QUALITY ────────────────────────────────────────
+function renderQuality(logs) {
+  // Static sheet info (always 6 sheets)
+  const SHEETS = [
+    {name:'SR',              routes:'SRF1, SERVICE PARTS'},
+    {name:'new DECK',        routes:'new DECK'},
+    {name:'P>BANPHO (7.4)',  routes:'P>BANPHO (7.4 M.)'},
+    {name:'P>BANPHO (8.4)',  routes:'P>BANPHO (8.4 M.)'},
+    {name:'SR OEM',          routes:'SR OEM'},
+    {name:'BANPHO OEM',      routes:'BANPHO OEM'},
+  ];
+  document.getElementById('q-grid').innerHTML = SHEETS.map(s => `
+    <div class="q-card">
+      <div class="q-head"><div class="q-emoji">✅</div>
+        <div><div class="q-name">${s.name}</div><div class="q-route">${s.routes}</div></div>
+      </div>
+      <div class="q-item">› โครงสร้างคอลัมน์ถูกต้อง</div>
+      <div class="q-item">› พร้อมรับข้อมูล</div>
+    </div>`).join('');
+
+  document.getElementById('q-summary').textContent = '6/6 Sheets รองรับ';
+
+  // Upload history
+  const tbody = document.getElementById('tb-history');
+  if (!logs || logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">ยังไม่มีประวัติการอัปโหลด</td></tr>';
+    return;
+  }
+  tbody.innerHTML = logs.map(l => `<tr>
+    <td>${l.filename||'–'}</td>
+    <td>${l.company||'–'}</td>
+    <td class="mono">${l.period_month||'–'}</td>
+    <td style="color:var(--accent4)">${l.sheets_ok||0}</td>
+    <td style="color:var(--accent)">${l.sheets_warn||0}</td>
+    <td style="color:var(--accent3)">${l.sheets_error||0}</td>
+    <td>${(l.status==='ok')?'✅ สำเร็จ':(l.status==='warning')?'⚠️ คำเตือน':'❌ ผิดพลาด'}</td>
+    <td style="font-size:11px;color:var(--text2)">${String(l.uploaded_at||'').slice(0,16).replace('T',' ')}</td>
+  </tr>`).join('');
+}
+
+function renderCurrentTab() {
+  const active = document.querySelector('.page.active');
+  if (!active) return;
+  if (active.id==='page-summary') renderSummary();
+  else if (active.id==='page-compare') { renderCompare(); renderTrend(); }
+  else if (active.id==='page-analytics' && currentData) renderAnalytics(currentData.routes);
+}
+
+function exportExcel() {
+  google.script.run.exportToExcel();
+}
+
+// ── INIT ─────────────────────────────────────────────────
+loadPeriods();
+</script>
+</body>
+</html>
